@@ -85,6 +85,7 @@ public:
 
     void OnNodeDiscovered(const Dnssd::DiscoveredNodeData & nodeData) override
     {
+
         if (!nodeData.resolutionData.IsValid())
         {
             streamer_printf(streamer_get(), "DNS browse failed - not found valid services \r\n");
@@ -104,6 +105,8 @@ public:
         streamer_printf(streamer_get(), "   Device type: %u\r\n", nodeData.nodeData.deviceType);
         streamer_printf(streamer_get(), "   Device name: %s\n", nodeData.nodeData.deviceName);
         streamer_printf(streamer_get(), "   Commissioning mode: %d\r\n", static_cast<int>(nodeData.nodeData.commissioningMode));
+        streamer_printf(streamer_get(), "   Instance: %s\r\n", nodeData.nodeData.instanceName);
+        streamer_printf(streamer_get(), "   Node Status: %d\r\n", nodeData.nodeData.hasZeroTTL);
         streamer_printf(streamer_get(), "   Pairing hint: %u\r\n", nodeData.nodeData.pairingHint);
         streamer_printf(streamer_get(), "   Pairing instruction: %s\r\n", nodeData.nodeData.pairingInstruction);
         streamer_printf(streamer_get(), "   Rotating ID %s\r\n", rotatingId);
@@ -228,6 +231,16 @@ CHIP_ERROR BrowseCommissionerHandler(int argc, char ** argv)
     return sResolverProxy.DiscoverCommissioners(filter);
 }
 
+CHIP_ERROR BrowseOperationalHandler(int argc, char ** argv)
+{
+    Dnssd::DiscoveryFilter filter;
+    VerifyOrReturnError(ParseSubType(argc, argv, filter), CHIP_ERROR_INVALID_ARGUMENT);
+
+    streamer_printf(streamer_get(), "Browsing operational...\r\n");
+
+    return sResolverProxy.DiscoverOperationalNodes(filter);
+}
+
 CHIP_ERROR BrowseHandler(int argc, char ** argv)
 {
     if (argc == 0)
@@ -262,13 +275,14 @@ void RegisterDnsCommands()
           "Browse Matter commissionable nodes. Usage: dns browse commissionable [subtype]" },
         { &BrowseCommissionerHandler, "commissioner",
           "Browse Matter commissioner nodes. Usage: dns browse commissioner [subtype]" },
+        { &BrowseOperationalHandler, "operational", "Browse Matter operational nodes. Usage: dns browse operational" },
     };
 
     static const shell_command_t sDnsSubCommands[] = {
         { &ResolveHandler, "resolve",
           "Resolve the DNS service. Usage: dns resolve <fabric-id> <node-id> (e.g. dns resolve 5544332211 1)" },
         { &BrowseHandler, "browse",
-          "Browse DNS services published by Matter nodes. Usage: dns browse <commissionable|commissioner>" },
+          "Browse DNS services published by Matter nodes. Usage: dns browse <commissionable|commissioner|operational>" },
     };
 
     static const shell_command_t sDnsCommand = { &DnsHandler, "dns", "Dns client commands" };

@@ -137,7 +137,8 @@ SerializedQNameIterator StoredServerName::Get() const
     return SerializedQNameIterator(BytesRange(mNameBuffer, mNameBuffer + sizeof(mNameBuffer)), mNameBuffer);
 }
 
-CHIP_ERROR IncrementalResolver::InitializeParsing(mdns::Minimal::SerializedQNameIterator name, const mdns::Minimal::SrvRecord & srv)
+CHIP_ERROR IncrementalResolver::InitializeParsing(mdns::Minimal::SerializedQNameIterator name, const uint64_t ttl,
+                                                  const mdns::Minimal::SrvRecord & srv)
 {
     AutoInactiveResetter inactiveReset(*this);
 
@@ -167,26 +168,8 @@ CHIP_ERROR IncrementalResolver::InitializeParsing(mdns::Minimal::SerializedQName
 
     switch (mServiceNameType)
     {
+    /* All known dnssd records for MATTER are filled into DnssdNodeData */
     case ServiceNameType::kOperational:
-        mSpecificResolutionData.Set<OperationalNodeData>();
-        {
-            // Operational addresses start with peer node information
-            SerializedQNameIterator nameCopy = name;
-            if (!nameCopy.Next() || !nameCopy.IsValid())
-            {
-                return CHIP_ERROR_INVALID_ARGUMENT;
-            }
-
-            CHIP_ERROR err =
-                ExtractIdFromInstanceName(nameCopy.Value(), &mSpecificResolutionData.Get<OperationalNodeData>().peerId);
-            if (err != CHIP_NO_ERROR)
-            {
-                return err;
-            }
-        }
-
-        LogFoundOperationalSrvRecord(mSpecificResolutionData.Get<OperationalNodeData>().peerId, mTargetHostName.Get());
-        break;
     case ServiceNameType::kCommissioner:
     case ServiceNameType::kCommissionable:
         mSpecificResolutionData.Set<DnssdNodeData>();
@@ -201,6 +184,7 @@ CHIP_ERROR IncrementalResolver::InitializeParsing(mdns::Minimal::SerializedQName
 
             Platform::CopyString(mSpecificResolutionData.Get<DnssdNodeData>().instanceName, nameCopy.Value());
         }
+        mSpecificResolutionData.Get<DnssdNodeData>().hasZeroTTL = (ttl == 0) ? false : true;
 
         LogFoundCommissionSrvRecord(mSpecificResolutionData.Get<DnssdNodeData>().instanceName, mTargetHostName.Get());
         break;
@@ -349,18 +333,6 @@ CHIP_ERROR IncrementalResolver::Take(DiscoveredNodeData & outputData)
 
     outputData.resolutionData = mCommonResolutionData;
     outputData.nodeData       = mSpecificResolutionData.Get<DnssdNodeData>();
-
-    ResetToInactive();
-
-    return CHIP_NO_ERROR;
-}
-
-CHIP_ERROR IncrementalResolver::Take(ResolvedNodeData & outputData)
-{
-    VerifyOrReturnError(IsActiveOperationalParse(), CHIP_ERROR_INCORRECT_STATE);
-
-    outputData.resolutionData  = mCommonResolutionData;
-    outputData.operationalData = mSpecificResolutionData.Get<OperationalNodeData>();
 
     ResetToInactive();
 
